@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Modern Calculator",
+    "slug": "expo-android-calculator",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#121212"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.calculator.androidapp",
+      "backgroundColor": "#121212",
+      "navigationBar": {
+        "backgroundColor": "#121212",
+        "barStyle": "light-content"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    }
+  }
+}
