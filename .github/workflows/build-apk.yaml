@@ -35,6 +35,10 @@ jobs:
         run: |
           npm ci || npm install
 
+      - name: Build Web Assets
+        run: |
+          npm run build --if-present
+
       - name: Build Android Project
         run: |
           npx cap sync android || (npx cap add android && npx cap sync android)
