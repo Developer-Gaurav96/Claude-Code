@@ -85,20 +85,27 @@
 
   function todayKey() { return MDT.ymd(new Date()); }
 
+  /* True when a day holds no real record — absent (a deliberate "no
+     delivery" choice) or a leftover zeroed-out entry. Those days are open
+     to auto-logging. A day with actual packets is never touched. */
+  function isOpenForAuto(key) {
+    var e = MDT.getEntry(key);
+    if (!e) return true;
+    if (e.absent) return false;
+    return e.milk === 0 && e.dahi === 0;
+  }
+
   /* Logs today's defaults if no manual record exists and the trigger
      time has passed. Safe to call on a timer: it no-ops once written. */
   function runAutomationCheck() {
     var s = MDT.settings();
     if (!s.automation) return false;
 
-    var now = new Date();
     var key = todayKey();
 
-    // Don't back-fill future days, and don't log before the trigger time.
+    // Don't log before the trigger time.
     if (minutesNow() < parseTime(s.autoTime)) return false;
-    // Any existing record blocks auto-logging — including an absent marker,
-    // which is a deliberate human decision that must not be overwritten.
-    if (MDT.getEntry(key)) return false;
+    if (!isOpenForAuto(key)) return false;
     if (s.milkPackets === 0 && s.dahiPackets === 0) return false;
 
     MDT.setEntry(key, {
@@ -114,7 +121,15 @@
     return true;
   }
 
-  /* Catch-up sweep: fills days that elapsed while the app was closed. */
+  /* Catch-up sweep: fills days that elapsed while the app was closed.
+     Auto-logging runs in a browser tab, so anything past the trigger time
+     that never got logged counts as a missed day and is filled with the
+     defaults. Both of today's entry states are handled up front:
+       - the current day is handled by runAutomationCheck, since it may
+         not have reached the trigger time yet;
+       - a day the user emptied by hand is open again, so it gets filled
+         if it was missed.
+     Days explicitly marked absent are never filled. */
   function backfill() {
     var s = MDT.settings();
     if (!s.automation) return 0;
@@ -129,12 +144,11 @@
       var day = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() - i);
       var key = MDT.ymd(day);
 
-      if (MDT.getEntry(key)) continue;
-
       // The trigger must have passed on that day too.
       var dayCutoff = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, trigger);
       if (dayCutoff.getTime() > now.getTime()) continue;
 
+      if (!isOpenForAuto(key)) continue;
       if (s.milkPackets === 0 && s.dahiPackets === 0) continue;
 
       MDT.setEntry(key, {
@@ -150,16 +164,36 @@
     return filled;
   }
 
+  function reportBackfill(count) {
+    if (!count) return;
+    MDT.refreshCalendar();
+    MDT.toast('Back-filled ' + count + ' missed day' + (count === 1 ? '' : 's'));
+  }
+
   function initAutomation() {
     var filled = backfill();
     runAutomationCheck();
 
-    // Every 30s while the app stays open.
-    window.setInterval(runAutomationCheck, 30000);
+    /* Poll every 30s. The interval is cheap because runAutomationCheck
+       no-ops once the day is written, but a laptop that sleeps past the
+       trigger wakes to a burst of missed ticks — so the poll is only
+       allowed to fire once per calendar day, and the visibility handler
+       covers waking instead. */
+    var lastPollDay = todayKey();
 
-    // Also check when the tab regains focus (covers sleep/wake).
+    window.setInterval(function () {
+      var key = todayKey();
+      if (key === lastPollDay) return;
+      lastPollDay = key;
+      runAutomationCheck();
+    }, 30000);
+
+    // Fires on wake / tab refocus, which is when a missed trigger matters.
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') runAutomationCheck();
+      if (document.visibilityState !== 'visible') return;
+      lastPollDay = todayKey();
+      reportBackfill(backfill());
+      runAutomationCheck();
     });
 
     return filled;
@@ -202,10 +236,7 @@
     window.addEventListener('pagehide', flush);
 
     var filled = initAutomation();
-    if (filled > 0) {
-      MDT.refreshCalendar();
-      MDT.toast('Back-filled ' + filled + ' missed day' + (filled === 1 ? '' : 's'));
-    }
+    reportBackfill(filled);
   }
 
   if (document.readyState === 'loading') {
