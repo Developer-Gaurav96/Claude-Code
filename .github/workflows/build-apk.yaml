@@ -35,13 +35,21 @@ jobs:
         run: |
           npm ci || npm install
 
-      - name: Build Web Assets
+      - name: Ensure web directory exists
         run: |
-          npm run build --if-present
+          if [ ! -d "www" ]; then
+            if [ -d "dist" ]; then
+              cp -r dist www
+            else
+              mkdir www
+              cp index.html www/ 2>/dev/null || true
+              cp -r js css assets www/ 2>/dev/null || true
+            fi
+          fi
 
       - name: Build Android Project
         run: |
-          npx cap sync android || (npx cap add android && npx cap sync android)
+          npx cap sync android
 
       - name: Build APK with Gradle
         run: |
