@@ -41,14 +41,15 @@ jobs:
             if [ -d "dist" ]; then
               cp -r dist www
             else
-              mkdir www
+              mkdir -p www
               cp index.html www/ 2>/dev/null || true
               cp -r js css assets www/ 2>/dev/null || true
             fi
           fi
 
-      - name: Build Android Project
+      - name: Add and Sync Android Platform
         run: |
+          npx cap add android || true
           npx cap sync android
 
       - name: Build APK with Gradle
